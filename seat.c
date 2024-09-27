@@ -1,7 +1,9 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <wayland-client-protocol.h>
 #include <xkbcommon/xkbcommon.h>
 #include "log.h"
 #include "swaylock.h"
@@ -129,6 +131,74 @@ static const struct wl_keyboard_listener keyboard_listener = {
 	.repeat_info = keyboard_repeat_info,
 };
 
+static void touch_down(
+	void *data,
+	struct wl_touch *wl_touch,
+	uint32_t serial,
+	uint32_t time,
+	struct wl_surface *surface,
+	int32_t id,
+	wl_fixed_t x,
+	wl_fixed_t y) {
+
+}
+
+static void touch_up(
+	void *data,
+	struct wl_touch *wl_touch,
+	uint32_t serial,
+	uint32_t time,
+	int32_t id) {
+	struct swaylock_seat *seat = data;
+	struct swaylock_state *state = seat->state;
+	uint32_t *last_touch_up_time = &state->last_touch_up_time;
+	swaylock_log(LOG_ERROR, "touch up at time %u", time);
+	if (*last_touch_up_time + 1000 > time) {
+		// double tap
+		swaylock_handle_key(state, XKB_KEY_Return, 0);
+	}
+	*last_touch_up_time = time;
+}
+
+void touch_frame(void *data,
+	      struct wl_touch *wl_touch) {
+}
+
+void touch_motion(void *data,
+	       struct wl_touch *wl_touch,
+	       uint32_t time,
+	       int32_t id,
+	       wl_fixed_t x,
+	       wl_fixed_t y) {
+}
+
+static void touch_cancel(void *data,
+	       struct wl_touch *wl_touch) {
+}
+
+static void touch_shape(void *data,
+	      struct wl_touch *wl_touch,
+	      int32_t id,
+	      wl_fixed_t major,
+	      wl_fixed_t minor) {
+}
+
+
+static void touch_orientation(void *data,
+		    struct wl_touch *wl_touch,
+		    int32_t id,
+		    wl_fixed_t orientation) {
+}
+static const struct wl_touch_listener touch_listener = {
+	.down = &touch_down,
+	.up = &touch_up,
+	.motion = &touch_motion,
+	.frame = &touch_frame,
+	.cancel = &touch_cancel,
+	.shape = &touch_shape,
+	.orientation = &touch_orientation
+};
+
 static void wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
 		uint32_t serial, struct wl_surface *surface,
 		wl_fixed_t surface_x, wl_fixed_t surface_y) {
@@ -204,6 +274,10 @@ static void seat_handle_capabilities(void *data, struct wl_seat *wl_seat,
 	if ((caps & WL_SEAT_CAPABILITY_KEYBOARD)) {
 		seat->keyboard = wl_seat_get_keyboard(wl_seat);
 		wl_keyboard_add_listener(seat->keyboard, &keyboard_listener, seat);
+	}
+	if ((caps & WL_SEAT_CAPABILITY_TOUCH)) {
+		seat->touch = wl_seat_get_touch(wl_seat);
+		wl_touch_add_listener(seat->touch, &touch_listener, seat);
 	}
 }
 
